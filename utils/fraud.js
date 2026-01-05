@@ -8,9 +8,9 @@ const isFar = (deliveryCoords, userCoords) => {
 };
 
 // Speed > 40 km/h inside city
-const isImpossibleJump = (prevCoords, prevTime, newCoords, newTime) => {
+const isImpossibleJump = (prevCoords, prevTime, newCoords, timestamp) => {
   const distance = haversineDistance(prevCoords, newCoords); // km
-  const timeDiff = (newTime - prevTime) / (1000 * 60 * 60); // hours
+  const timeDiff = (timestamp - prevTime) / (1000 * 60 * 60); // hours
 
   if (timeDiff === 0) return true;
 

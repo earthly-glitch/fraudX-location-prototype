@@ -6,9 +6,9 @@ const haversineDistance = (coord1, coord2) => {
   const R = 6371; // Earth radius in KM
 
   const lat1 = coord1.lat;
-  const lon1 = coord1.lng;
+  const lon1 = coord1.lon;
   const lat2 = coord2.lat;
-  const lon2 = coord2.lng;
+  const lon2 = coord2.lon;
 
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
