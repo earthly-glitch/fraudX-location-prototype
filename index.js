@@ -7,14 +7,22 @@ const express = require('express');
 const mongoose = require('mongoose');
 const LocationLog = require('./models/locationLogs');
 
+
+//haversine formuls to calculate distance between two locations
+const haversineDistance = require("./utils/haversine");
+const { isFar, isImpossibleJump } = require("./utils/fraud");
+
+
+
+
 //initialize express app
 const app = express();
 app.use(express.json());
 
 //mongoDB connection
-mongoose.connect("mongodb://127.0.0.1:27017/starksLocProto")
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log("Mongo Error:", err));
+// mongoose.connect("mongodb://127.0.0.1:27017/starksLocProto")
+//   .then(() => console.log("MongoDB connected"))
+//   .catch(err => console.log("Mongo Error:", err));
 
 //route testing
 app.get('/location', (req, res) => {
@@ -22,17 +30,59 @@ app.get('/location', (req, res) => {
     res.send('Location Logging Service is up and running!');
 });
 
+//sarthak code
+app.post("/api/location/ping", (req, res) => {
+  const {
+    userCoords,
+    deliveryCoords,
+    prevCoords,
+    prevTime,
+    timestamp
+  } = req.body;
 
-//insert location log using post request
-app.post("/api/location/ping", async (req, res) => {
-  try {
-    const logEntry = await LocationLog.create(req.body);
-    console.log("Inserted Log ID:", logEntry._id);
-    res.json({ ok: true, storedID: logEntry._id });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+  console.log("Incoming Ping:", req.body);
+
+  let fraud = null;
+  let riskScore = 0;
+
+  // Distance mismatch check
+  if (isFar(deliveryCoords, userCoords)) {
+    fraud = "GeoMismatch";
+    riskScore = 0.8;
   }
+
+  // Impossible movement check
+  if (
+    prevCoords &&
+    prevTime &&
+    isImpossibleJump(prevCoords, prevTime, userCoords, timestamp)
+  ) {
+    fraud = "ImpossibleJump";
+    riskScore = 0.9;
+  }
+
+  console.log("Fraud:", fraud);
+  console.log("Risk Score:", riskScore);
+
+  res.json({
+    ok: true,
+    fraud,
+    riskScore
+  });
 });
+
+
+app.get("/api/location/test-distance", (req, res) => {
+  const coord1 = { lat: 12.9716, lng: 77.5946 };
+  const coord2 = { lat: 12.2958, lng: 76.6394 };
+
+  const distance = haversineDistance(coord1, coord2);
+
+  console.log("Test Distance:", distance);
+
+  res.json({ distance });
+});
+
 
 
 // Read logs API
