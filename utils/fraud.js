@@ -1,24 +1,47 @@
+console.log("ACTIVE FRAUD.JS LOADED!");
 
 const haversineDistance = require("./haversine");
 
-// GPS mismatch > 0.5 km
+// Distance-based fraud check
 const isFar = (deliveryCoords, userCoords) => {
-  const distance = haversineDistance(deliveryCoords, userCoords);
-  return distance > 0.5;
+  if (!deliveryCoords || !userCoords) {
+    return { flag: false, distance: null };
+  }
+
+  const distance = haversineDistance(
+    deliveryCoords,
+    userCoords
+  );
+
+  return {
+    flag: distance > 0.5,
+    distance
+  };
 };
 
-// Speed > 40 km/h inside city
+// Speed-based fraud check
 const isImpossibleJump = (prevCoords, prevTime, newCoords, timestamp) => {
-  const distance = haversineDistance(prevCoords, newCoords); // km
-  const timeDiff = (timestamp - prevTime) / (1000 * 60 * 60); // hours
+  if (!prevCoords || !newCoords || !prevTime || !timestamp) {
+    return { flag: false, speed: null, distance: null };
+  }
 
-  if (timeDiff === 0) return true;
+  const distance = haversineDistance(
+    prevCoords,
+    newCoords
+  );
 
-  const speed = distance / timeDiff;
-  return speed > 40;
+  const timeDiffHours = (timestamp - prevTime) / (1000 * 60 * 60);
+
+  if (timeDiffHours <= 0) {
+    return { flag: true, speed: Infinity, distance };
+  }
+
+  const speed = distance / timeDiffHours;
+  const flag = speed > 40;
+
+  console.log("Computed speed:", speed);
+
+  return { flag, speed, distance };
 };
 
-module.exports = {
-  isFar,
-  isImpossibleJump,
-};
+module.exports = { isFar, isImpossibleJump };

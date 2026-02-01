@@ -1,7 +1,6 @@
-//mongoose model for location logs
 const mongoose = require("mongoose");
 
-const locationSchema = new mongoose.Schema({
+const schema = new mongoose.Schema({
   deviceId: { type: String, required: true },
   lat: { type: Number, required: true },
   lon: { type: Number, required: true },
@@ -12,4 +11,4 @@ const locationSchema = new mongoose.Schema({
   riskScore: Number,
 });
 
-module.exports = mongoose.model("LocationLog", locationSchema);
+module.exports = mongoose.model("LocationLog", schema);

@@ -11,7 +11,7 @@ const cityMapper = require('./utils/cityMapper.js');
 
 //haversine formuls to calculate distance between two locations
 const haversineDistance = require("./utils/haversine");
-const { isFar, isImpossibleJump } = require("./utils/fraud");
+const { isFar, isImpossibleJump } = require("./utils/fraud.js");
 
 
 
@@ -33,6 +33,48 @@ app.get('/location', (req, res) => {
 });
 
 //sarthak code
+// app.post("/api/location/ping", (req, res) => {
+//   const {
+//     userCoords,
+//     deliveryCoords,
+//     prevCoords,
+//     prevTime,
+//     timestamp
+//   } = req.body;
+
+//   console.log("Incoming Ping:", req.body);
+
+//   let fraud = null;
+//   let riskScore = 0;
+
+//   // Distance mismatch check
+//   if (isFar(deliveryCoords, userCoords)) {
+//     fraud = "GeoMismatch";
+//     riskScore = 0.8;
+//   }
+
+//   // Impossible movement check
+//   if (
+//     prevCoords &&
+//     prevTime &&
+//     isImpossibleJump(prevCoords, prevTime, userCoords, timestamp)
+//   ) {
+//     fraud = "ImpossibleJump";
+//     riskScore = 0.9;
+//     speed = isImpossibleJump(prevCoords, prevTime, userCoords, timestamp).speed;
+//   }
+
+//   console.log("Fraud:", fraud);
+//   console.log("Risk Score:", riskScore);
+
+//   res.json({
+//     ok: true,
+//     fraud,
+//     riskScore,
+//     speed
+//   });
+// });
+
 app.post("/api/location/ping", (req, res) => {
   const {
     userCoords,
@@ -46,30 +88,42 @@ app.post("/api/location/ping", (req, res) => {
 
   let fraud = null;
   let riskScore = 0;
+  let speed = null;
 
-  // Distance mismatch check
-  if (isFar(deliveryCoords, userCoords)) {
+  // Distance fraud
+  const distanceCheck = isFar(deliveryCoords, userCoords);
+  if (distanceCheck.flag) {
     fraud = "GeoMismatch";
     riskScore = 0.8;
   }
 
-  // Impossible movement check
-  if (
-    prevCoords &&
-    prevTime &&
-    isImpossibleJump(prevCoords, prevTime, userCoords, timestamp)
-  ) {
-    fraud = "ImpossibleJump";
-    riskScore = 0.9;
+  // Speed fraud
+  if (prevCoords && prevTime) {
+    const jumpCheck = isImpossibleJump(
+      prevCoords,
+      prevTime,
+      userCoords,
+      timestamp
+    );
+
+    speed = jumpCheck.speed;
+
+    if (jumpCheck.flag) {
+      fraud = "ImpossibleJump";
+      riskScore = 0.9;
+    }
   }
 
-  console.log("Fraud:", fraud);
-  console.log("Risk Score:", riskScore);
+  console.log("userCoords:", userCoords);
+console.log("deliveryCoords:", deliveryCoords);
+console.log("prevCoords:", prevCoords);
+
 
   res.json({
     ok: true,
     fraud,
-    riskScore
+    riskScore,
+    speed
   });
 });
 
