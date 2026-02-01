@@ -1,9 +1,11 @@
 // main file ! 
-
+const cors = require('cors');
 require('dotenv').config(); //. This is critical for following the India DPDP Act 2023 and RBI guidelines
 
 //inventory of required modules
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const LocationLog = require('./models/locationLogs');
 const cityMapper = require('./utils/cityMapper.js');
@@ -12,14 +14,31 @@ const cityMapper = require('./utils/cityMapper.js');
 //haversine formuls to calculate distance between two locations
 const haversineDistance = require("./utils/haversine");
 const { isFar, isImpossibleJump } = require("./utils/fraud.js");
-
+const { getLastPing, saveLastPing } = require('./utils/redisHelper');
 
 
 
 
 //initialize express app
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",  // Allow all origins for now (restrict in production)
+    methods: ["GET", "POST"]
+  }
+});
+
+app.use(cors());  // Enable CORS for all routes
 app.use(express.json());
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(' Client connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log(' Client disconnected:', socket.id);
+  });
+});
 
 // mongoDB connection
 mongoose.connect("mongodb://127.0.0.1:27017/starksLocProto")
@@ -74,34 +93,52 @@ app.get('/location', (req, res) => {
 //     speed
 //   });
 // });
-
-app.post("/api/location/ping", (req, res) => {
+app.post("/api/location/ping", async (req, res) => {
   const {
+    deviceId,
     userCoords,
     deliveryCoords,
-    prevCoords,
-    prevTime,
     timestamp
   } = req.body;
 
+  if (!deviceId) {
+    return res.status(400).json({ 
+      ok: false, 
+      error: "deviceId is required" 
+    });
+  }
+
+  if (!userCoords || !timestamp) {
+    return res.status(400).json({ 
+      ok: false, 
+      error: "userCoords and timestamp are required" 
+    });
+  }
+
   console.log("Incoming Ping:", req.body);
 
-  let fraud = null;
+  let fraudTypes = [];  // ✅ NOW AN ARRAY
   let riskScore = 0;
   let speed = null;
 
-  // Distance fraud
-  const distanceCheck = isFar(deliveryCoords, userCoords);
-  if (distanceCheck.flag) {
-    fraud = "GeoMismatch";
-    riskScore = 0.8;
+  const lastPing = await getLastPing(deviceId);
+  console.log("Last ping from Redis:", lastPing);
+
+  // ✅ Distance fraud check (GeoMismatch)
+  if (deliveryCoords) {
+    const distanceCheck = isFar(deliveryCoords, userCoords);
+    if (distanceCheck.flag) {
+      fraudTypes.push("GeoMismatch");
+      riskScore = Math.max(riskScore, 0.8);  // Keep highest risk score
+      console.log(`GeoMismatch detected: ${distanceCheck.distance} km from delivery point`);
+    }
   }
 
-  // Speed fraud
-  if (prevCoords && prevTime) {
+  // ✅ Speed fraud check (ImpossibleJump)
+  if (lastPing && lastPing.lat && lastPing.lon && lastPing.timestamp) {
     const jumpCheck = isImpossibleJump(
-      prevCoords,
-      prevTime,
+      { lat: lastPing.lat, lon: lastPing.lon },
+      lastPing.timestamp,
       userCoords,
       timestamp
     );
@@ -109,22 +146,67 @@ app.post("/api/location/ping", (req, res) => {
     speed = jumpCheck.speed;
 
     if (jumpCheck.flag) {
-      fraud = "ImpossibleJump";
-      riskScore = 0.9;
+      fraudTypes.push("ImpossibleJump");
+      riskScore = Math.max(riskScore, 0.9);  // Keep highest risk score
     }
+
+    console.log(`Speed check: ${speed} km/h`);
+  } else {
+    console.log("No previous ping - skipping speed check");
   }
 
-  console.log("userCoords:", userCoords);
-console.log("deliveryCoords:", deliveryCoords);
-console.log("prevCoords:", prevCoords);
-
-
-  res.json({
-    ok: true,
-    fraud,
-    riskScore,
-    speed
+  // ✅ SAVE CURRENT PING TO REDIS
+  await saveLastPing(deviceId, {
+    lat: userCoords.lat,
+    lon: userCoords.lon,
+    timestamp: timestamp
   });
+
+  // Save to MongoDB for history
+  await LocationLog.create({
+    deviceId,
+    lat: userCoords.lat,
+    lon: userCoords.lon,
+    timestamp,
+    fraudFlag: fraudTypes.length > 0 ? fraudTypes.join(", ") : null,  // Store as comma-separated string
+    riskScore
+  });
+
+ console.log("Fraud Types:", fraudTypes);
+console.log("Risk Score:", riskScore);
+
+// ✅ EMIT SOCKET.IO EVENTS FOR REAL-TIME UPDATES
+// Event 1: Location update (always emit)
+io.emit('location_update', {
+  deviceId,
+  lat: userCoords.lat,
+  lon: userCoords.lon,
+  fraudTypes: fraudTypes.length > 0 ? fraudTypes : null,
+  riskScore,
+  speed,
+  timestamp
+});
+
+// Event 2: Fraud alert (only if fraud detected)
+if (fraudTypes.length > 0) {
+  io.emit('fraud_alert', {
+    deviceId,
+    fraudTypes,
+    riskScore,
+    speed,
+    lat: userCoords.lat,
+    lon: userCoords.lon,
+    timestamp
+  });
+}
+
+res.json({
+  ok: true,
+  fraudTypes: fraudTypes.length > 0 ? fraudTypes : null,
+  riskScore,
+  speed,
+  deviceId
+});
 });
 
 
@@ -225,8 +307,17 @@ app.get("/api/location/delivery/:deviceId",async(req,res)=>{
   res.json(log);
 });
 
-//start server
-app.listen(process.env.PORT || 3000, () => {
-    console.log(`Server is running on port ${process.env.PORT || 3000}`);
-
+// Serve the Socket.IO test page
+app.get('/test', (req, res) => {
+  console.log("TEST ROUTE HIT!");
+  res.send("Hello from test route!");
 });
+
+//start server
+server.listen(process.env.PORT || 3000, () => {
+    console.log(`Server running on port ${process.env.PORT || 3000}`);
+    console.log(`✅ Socket.IO ready for real-time updates`);
+});
+
+
+

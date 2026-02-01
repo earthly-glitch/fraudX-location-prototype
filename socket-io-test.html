@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+        h1 { 
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+        .status { 
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid #ffc107;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .event-box {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 5px solid #4CAF50;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fraud-alert {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .fraud-alert h3 {
+            color: #c62828;
+        }
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .clear-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .clear-btn:hover {
+            background: #c82333;
+        }
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid #2196F3;
+        }
+        .info-box h4 {
+            margin: 0 0 10px 0;
+            color: #1976D2;
+        }
+        .info-box code {
+            background: #bbdefb;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Socket.IO Real-Time Monitor</h1>
+    
+    <div class="info-box">
+        <h4>📡 Instructions:</h4>
+        <p>1. Make sure your server is running on <code>http://localhost:3000</code></p>
+        <p>2. Send a POST request to <code>/api/location/ping</code> to see real-time events</p>
+        <p>3. Watch this page update automatically!</p>
+    </div>
+
+    <div class="status" id="status">⏳ Connecting to Socket.IO server...</div>
+    
+    <button class="clear-btn" onclick="clearEvents()">🗑️ Clear Events</button>
+    
+    <div id="events"></div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Connect to Socket.IO server
+        const socket = io('http://localhost:3000', {
+            transports: ['websocket', 'polling']
+        });
+        
+        const eventsDiv = document.getElementById('events');
+        const statusDiv = document.getElementById('status');
+        let eventCount = 0;
+
+        // Connection successful
+        socket.on('connect', () => {
+            statusDiv.innerHTML = '✅ Connected to Socket.IO server! (Socket ID: ' + socket.id + ')';
+            statusDiv.className = 'status connected';
+            addEvent('System Event', '🟢 Successfully connected to server', {
+                socketId: socket.id,
+                transport: socket.io.engine.transport.name
+            });
+            console.log('Socket.IO connected:', socket.id);
+        });
+
+        // Connection lost
+        socket.on('disconnect', () => {
+            statusDiv.innerHTML = '❌ Disconnected from server';
+            statusDiv.className = 'status disconnected';
+            addEvent('System Event', '🔴 Connection lost', {});
+        });
+
+        // Connection error
+        socket.on('connect_error', (error) => {
+            statusDiv.innerHTML = '⚠️ Connection Error: ' + error.message;
+            statusDiv.className = 'status disconnected';
+            console.error('Connection error:', error);
+        });
+
+        // Listen for location updates
+        socket.on('location_update', (data) => {
+            eventCount++;
+            const isFraud = data.fraudTypes && data.fraudTypes.length > 0;
+            addEvent(
+                '📍 Location Update #' + eventCount,
+                isFraud ? '⚠️ Location ping with fraud detected' : '✅ Normal location ping',
+                data,
+                isFraud
+            );
+            console.log('Location update:', data);
+        });
+
+        // Listen for fraud alerts
+        socket.on('fraud_alert', (data) => {
+            addEvent(
+                '🚨 FRAUD ALERT',
+                '⛔ Fraudulent activity detected!',
+                data,
+                true
+            );
+            console.log('Fraud alert:', data);
+            
+            // Optional: Play sound or show browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Fraud Detected!', {
+                    body: `Device ${data.deviceId}: ${data.fraudTypes.join(', ')}`,
+                    icon: '🚨'
+                });
+            }
+        });
+
+        // Add event to the display
+        function addEvent(title, message, data, isFraud = false) {
+            const eventBox = document.createElement('div');
+            eventBox.className = 'event-box' + (isFraud ? ' fraud-alert' : '');
+            
+            eventBox.innerHTML = `
+                <h3>${title}</h3>
+                <p>${message}</p>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+                <div class="timestamp">⏰ ${new Date().toLocaleString()}</div>
+            `;
+            
+            eventsDiv.insertBefore(eventBox, eventsDiv.firstChild);
+        }
+
+        // Clear all events
+        function clearEvents() {
+            eventsDiv.innerHTML = '';
+            eventCount = 0;
+        }
+
+        // Request notification permission on load
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>

@@ -25,19 +25,17 @@ const isImpossibleJump = (prevCoords, prevTime, newCoords, timestamp) => {
     return { flag: false, speed: null, distance: null };
   }
 
-  const distance = haversineDistance(
-    prevCoords,
-    newCoords
-  );
-
+  const distance = haversineDistance(prevCoords, newCoords);
+  
   const timeDiffHours = (timestamp - prevTime) / (1000 * 60 * 60);
 
+  // If same timestamp or older timestamp, skip check (not fraud, just ignore)
   if (timeDiffHours <= 0) {
-    return { flag: true, speed: Infinity, distance };
+    return { flag: false, speed: 0, distance };
   }
 
   const speed = distance / timeDiffHours;
-  const flag = speed > 40;
+  const flag = speed > 100;
 
   console.log("Computed speed:", speed);
 
