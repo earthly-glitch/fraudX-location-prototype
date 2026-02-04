@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto Ping Sender - Realistic Movement</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-start:hover {
+            background: #45a049;
+        }
+        .btn-stop {
+            background: #f44336;
+            color: white;
+            display: none;
+        }
+        .btn-stop:hover {
+            background: #da190b;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .status.idle {
+            background: #e3f2fd;
+            color: #1976D2;
+        }
+        .status.running {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .info-label {
+            color: #666;
+        }
+        .info-value {
+            font-weight: bold;
+            color: #333;
+        }
+        .log {
+            background: #263238;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .interval-control {
+            margin-bottom: 20px;
+        }
+        .interval-control label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        .interval-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .route-info {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .route-info strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #856404;
+        }
+        .movement-mode {
+            margin-bottom: 20px;
+        }
+        .movement-mode label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Auto Ping Sender</h1>
+        <p class="subtitle">Realistic device movement for fraud detection demo</p>
+
+        <div class="route-info">
+            <strong>🗺️ Movement Simulation:</strong>
+            Routes are designed for <strong>10-second intervals</strong> with realistic speeds.
+            Normal mode = car speed, Fast mode = plane speed, Teleport = instant jumps.
+        </div>
+        
+        <input 
+            type="text" 
+            id="deviceId" 
+            placeholder="Enter Device ID (e.g., demoDevice01)"
+            value="demoDevice01"
+        >
+
+        <div class="movement-mode">
+            <label>Movement Mode:</label>
+            <select id="movementMode">
+                <option value="normal">🚗 Normal (40-60 km/h) - No Fraud</option>
+                <option value="fast">✈️ Fast (200+ km/h) - Triggers Fraud</option>
+                <option value="teleport">⚡ Instant Teleport - Extreme Fraud</option>
+            </select>
+        </div>
+        
+        <div class="interval-control">
+            <label>
+                Ping Interval: <span class="interval-value" id="intervalValue">10</span> seconds
+            </label>
+            <input 
+                type="range" 
+                id="intervalRange" 
+                min="5" 
+                max="30" 
+                value="10"
+                style="width: 100%"
+            >
+        </div>
+
+        <div class="status idle" id="status">
+            ⏸️ Ready to start simulation
+        </div>
+
+        <button class="btn btn-start" id="startBtn" onclick="startSimulation()">
+            ▶️ Start Simulation
+        </button>
+        <button class="btn btn-stop" id="stopBtn" onclick="stopSimulation()">
+            ⏹️ Stop Simulation
+        </button>
+
+        <div class="info">
+            <div class="info-row">
+                <span class="info-label">Current Location:</span>
+                <span class="info-value" id="currentLocation">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Current Lat:</span>
+                <span class="info-value" id="currentLat">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Current Lon:</span>
+                <span class="info-value" id="currentLon">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Pings Sent:</span>
+                <span class="info-value" id="pingCount">0</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Distance Traveled:</span>
+                <span class="info-value" id="distanceTraveled">0 km</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Last Response:</span>
+                <span class="info-value" id="lastResponse">-</span>
+            </div>
+        </div>
+
+        <h3>Activity Log:</h3>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        let intervalId = null;
+        let pingCount = 0;
+        let currentInterval = 10;
+        let currentPosition = 0;
+        let totalDistance = 0;
+
+        // Realistic routes with VERY small distances for 10-second intervals
+        // Each jump ~0.02 km (20 meters) = 7.2 km/h walking speed
+        // Or ~0.15 km = 54 km/h car speed
+        const route = {
+            normal: [
+                // Very small jumps around Shivajinagar area (each ~0.15km = 54 km/h)
+                { name: "Point 1", lat: 18.5204, lon: 73.8567 },
+                { name: "Point 2", lat: 18.5218, lon: 73.8577 },  // ~150m away
+                { name: "Point 3", lat: 18.5232, lon: 73.8587 },  // ~150m away
+                { name: "Point 4", lat: 18.5246, lon: 73.8597 },  // ~150m away
+                { name: "Point 5", lat: 18.5260, lon: 73.8607 },  // ~150m away
+                { name: "Point 6", lat: 18.5274, lon: 73.8617 },  // ~150m away
+                { name: "Point 7", lat: 18.5288, lon: 73.8627 },  // ~150m away
+                { name: "Point 8", lat: 18.5302, lon: 73.8637 },  // ~150m away
+                { name: "Point 9", lat: 18.5316, lon: 73.8647 },  // ~150m away
+                { name: "Point 10", lat: 18.5330, lon: 73.8657 }  // ~150m away
+            ],
+            fast: [
+                // Longer jumps (~1 km each = 360 km/h at 10 sec = FRAUD!)
+                { name: "Pune", lat: 18.5204, lon: 73.8567 },
+                { name: "Jump 1", lat: 18.5304, lon: 73.8667 },
+                { name: "Jump 2", lat: 18.5404, lon: 73.8767 },
+                { name: "Jump 3", lat: 18.5504, lon: 73.8867 },
+                { name: "Jump 4", lat: 18.5604, lon: 73.8967 },
+                { name: "Far Away", lat: 18.6204, lon: 73.9567 }
+            ],
+            teleport: [
+                // Extreme jumps across India
+                { name: "Pune", lat: 18.5204, lon: 73.8567 },
+                { name: "Mumbai", lat: 19.0760, lon: 72.8777 },
+                { name: "Delhi", lat: 28.7041, lon: 77.1025 },
+                { name: "Bangalore", lat: 12.9716, lon: 77.5946 },
+                { name: "Kolkata", lat: 22.5726, lon: 88.3639 },
+                { name: "Chennai", lat: 13.0827, lon: 80.2707 }
+            ]
+        };
+
+        document.getElementById('intervalRange').addEventListener('input', (e) => {
+            currentInterval = e.target.value;
+            document.getElementById('intervalValue').textContent = currentInterval;
+        });
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#f44336' : type === 'success' ? '#4CAF50' : '#2196F3';
+            logDiv.innerHTML = `<div style="color: ${color}">[${timestamp}] ${message}</div>` + logDiv.innerHTML;
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        async function sendPing() {
+            const deviceId = document.getElementById('deviceId').value;
+            const mode = document.getElementById('movementMode').value;
+            const selectedRoute = route[mode];
+
+            const location = selectedRoute[currentPosition];
+            const lat = location.lat;
+            const lon = location.lon;
+
+            if (pingCount > 0 && currentPosition > 0) {
+                const prevLocation = selectedRoute[currentPosition - 1];
+                const dist = calculateDistance(prevLocation.lat, prevLocation.lon, lat, lon);
+                totalDistance += dist;
+            }
+
+            document.getElementById('currentLocation').textContent = location.name;
+            document.getElementById('currentLat').textContent = lat.toFixed(6);
+            document.getElementById('currentLon').textContent = lon.toFixed(6);
+            document.getElementById('distanceTraveled').textContent = totalDistance.toFixed(2) + ' km';
+
+            const payload = {
+                deviceId: deviceId,
+                userCoords: {
+                    lat: lat,
+                    lon: lon
+                },
+                timestamp: Date.now()
+            };
+
+            try {
+                const response = await fetch('http://localhost:3000/api/location/ping', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                pingCount++;
+                document.getElementById('pingCount').textContent = pingCount;
+                
+                if (data.fraudTypes) {
+                    document.getElementById('lastResponse').textContent = '🚨 FRAUD: ' + data.fraudTypes.join(', ');
+                    document.getElementById('lastResponse').style.color = '#f44336';
+                    log(`🚨 Ping #${pingCount} at ${location.name} - FRAUD: ${data.fraudTypes.join(', ')} (Speed: ${data.speed ? data.speed.toFixed(1) : 'N/A'} km/h)`, 'error');
+                } else {
+                    document.getElementById('lastResponse').textContent = '✅ OK' + (data.speed ? ` (${data.speed.toFixed(1)} km/h)` : '');
+                    document.getElementById('lastResponse').style.color = '#4CAF50';
+                    log(`✅ Ping #${pingCount} at ${location.name} - OK (Speed: ${data.speed ? data.speed.toFixed(1) : 'N/A'} km/h)`, 'success');
+                }
+
+                currentPosition++;
+                if (currentPosition >= selectedRoute.length) {
+                    log(`🏁 Route completed! Restarting from beginning...`, 'info');
+                    currentPosition = 0;
+                    totalDistance = 0;
+                }
+
+            } catch (error) {
+                log(`❌ Error sending ping: ${error.message}`, 'error');
+                document.getElementById('lastResponse').textContent = '❌ Error';
+                document.getElementById('lastResponse').style.color = '#f44336';
+            }
+        }
+
+        function startSimulation() {
+            const deviceId = document.getElementById('deviceId').value;
+            const mode = document.getElementById('movementMode').value;
+            
+            if (!deviceId) {
+                alert('Please enter a Device ID');
+                return;
+            }
+
+            currentPosition = 0;
+            pingCount = 0;
+            totalDistance = 0;
+            document.getElementById('pingCount').textContent = '0';
+            document.getElementById('distanceTraveled').textContent = '0 km';
+
+            sendPing();
+            intervalId = setInterval(sendPing, currentInterval * 1000);
+
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('deviceId').disabled = true;
+            document.getElementById('movementMode').disabled = true;
+            document.getElementById('intervalRange').disabled = true;
+            
+            const modeText = mode === 'normal' ? 'Normal' : mode === 'fast' ? 'Fast' : 'Teleport';
+            updateStatus(`▶️ Simulating ${modeText} movement every ${currentInterval} seconds...`, 'running');
+            log(`▶️ Started simulation with device: ${deviceId} (${modeText} mode)`, 'success');
+        }
+
+        function stopSimulation() {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+
+            document.getElementById('startBtn').style.display = 'block';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('deviceId').disabled = false;
+            document.getElementById('movementMode').disabled = false;
+            document.getElementById('intervalRange').disabled = false;
+            
+            updateStatus('⏸️ Simulation stopped', 'idle');
+            log('⏹️ Simulation stopped', 'info');
+        }
+
+        log('🚗 Realistic movement ready. Select mode and click "Start" to begin.');
+    </script>
+</body>
+</html>

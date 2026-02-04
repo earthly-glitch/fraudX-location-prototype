@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FraudX - Live Dashboard</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Main Layout */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: #1e293b;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        /* Connection Status */
+        .status-box {
+            padding: 15px 20px;
+            background: #334155;
+            border-left: 4px solid #fbbf24;
+        }
+        
+        .status-box.connected {
+            background: #065f46;
+            border-left-color: #10b981;
+        }
+        
+        .status-box.disconnected {
+            background: #7f1d1d;
+            border-left-color: #ef4444;
+        }
+        
+        /* Stats */
+        .stats {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .stat-card {
+            background: #334155;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        
+        /* Device List */
+        .devices-section {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .devices-section h3 {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .device-card {
+            background: #334155;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #10b981;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .device-card:hover {
+            background: #3f4f66;
+            transform: translateX(5px);
+        }
+        
+        .device-card.fraud {
+            border-left-color: #ef4444;
+            background: #431b1b;
+        }
+        
+        .device-card.fraud:hover {
+            background: #5c2626;
+        }
+        
+        .device-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: #10b981;
+            color: white;
+        }
+        
+        .device-badge.fraud {
+            background: #ef4444;
+        }
+        
+        .device-info {
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+        
+        /* Map Container */
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Fraud Alert Popup */
+        .fraud-alert {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #dc2626;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 350px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+            display: none;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .fraud-alert h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .fraud-alert p {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .fraud-alert .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+        
+        .fraud-alert .close-btn:hover {
+            opacity: 1;
+        }
+        
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 999;
+        }
+        
+        .legend h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #1e293b;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .legend-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-icon.safe {
+            background: #10b981;
+        }
+        
+        .legend-icon.fraud {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>🛡️ FraudX</h1>
+                <p>Real-time Location Fraud Detection</p>
+            </div>
+            
+            <div class="status-box" id="statusBox">
+                ⏳ Connecting to server...
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalDevices">0</div>
+                    <div class="stat-label">Active Devices</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="fraudCount">0</div>
+                    <div class="stat-label">Fraud Alerts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalPings">0</div>
+                    <div class="stat-label">Total Pings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="safeDevices">0</div>
+                    <div class="stat-label">Safe Devices</div>
+                </div>
+            </div>
+            
+            <div class="devices-section">
+                <h3>📱 Tracked Devices</h3>
+                <div id="deviceList"></div>
+            </div>
+        </div>
+        
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <!-- Fraud Alert Popup -->
+            <div class="fraud-alert" id="fraudAlert">
+                <button class="close-btn" onclick="closeFraudAlert()">×</button>
+                <h3>🚨 Fraud Detected!</h3>
+                <p id="fraudAlertText"></p>
+            </div>
+            
+            <!-- Legend -->
+            <div class="legend">
+                <h4>Device Status</h4>
+                <div class="legend-item">
+                    <div class="legend-icon safe"></div>
+                    <span>Safe - No fraud detected</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon fraud"></div>
+                    <span>Fraud - Alert triggered</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // PART 1: INITIALIZE VARIABLES & MAP
+        // ==========================================
+        
+        let map;
+        let markers = {};  // Store markers by deviceId
+        let devices = {};  // Store device data
+        let totalPings = 0;
+        let fraudCount = 0;
+        
+        // Initialize Leaflet Map with OpenStreetMap
+        function initMap() {
+            // Create map centered on Pune, India
+            map = L.map('map').setView([18.5204, 73.8567], 12);
+            
+            // Add OpenStreetMap tiles (FREE, no API key!)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            console.log('✅ Map initialized with OpenStreetMap');
+        }
+        
+        // ==========================================
+        // PART 2: SOCKET.IO CONNECTION
+        // ==========================================
+        
+        const socket = io('http://localhost:3000');
+        
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+            updateStatus('✅ Connected to server', 'connected');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+            updateStatus('❌ Disconnected from server', 'disconnected');
+        });
+        
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            updateStatus('⚠️ Connection error', 'disconnected');
+        });
+        
+        // ==========================================
+        // PART 3: LISTEN FOR LOCATION UPDATES
+        // ==========================================
+        
+        socket.on('location_update', (data) => {
+            console.log('📍 Location update:', data);
+            
+            totalPings++;
+            document.getElementById('totalPings').textContent = totalPings;
+            
+            // Update or create device
+            updateDevice(data);
+            
+            // Update or create marker on map
+            updateMarker(data);
+            
+            // Update device list in sidebar
+            updateDeviceList();
+            
+            // Update stats
+            updateStats();
+        });
+        
+        // ==========================================
+        // PART 4: LISTEN FOR FRAUD ALERTS
+        // ==========================================
+        
+        socket.on('fraud_alert', (data) => {
+            console.log('🚨 Fraud alert:', data);
+            
+            fraudCount++;
+            document.getElementById('fraudCount').textContent = fraudCount;
+            
+            // Show fraud alert popup
+            showFraudAlert(data);
+            
+            // Mark device as fraud
+            if (devices[data.deviceId]) {
+                devices[data.deviceId].hasFraud = true;
+                devices[data.deviceId].fraudTypes = data.fraudTypes;
+            }
+            
+            // Update marker to red
+            if (markers[data.deviceId]) {
+                markers[data.deviceId].setIcon(createMarkerIcon(true));
+            }
+            
+            updateDeviceList();
+            updateStats();
+        });
+        
+        // ==========================================
+        // PART 5: UPDATE DEVICE DATA
+        // ==========================================
+        
+        function updateDevice(data) {
+            if (!devices[data.deviceId]) {
+                devices[data.deviceId] = {
+                    deviceId: data.deviceId,
+                    lat: data.lat,
+                    lon: data.lon,
+                    hasFraud: data.fraudTypes ? true : false,
+                    fraudTypes: data.fraudTypes || null,
+                    speed: data.speed,
+                    lastUpdate: Date.now()
+                };
+            } else {
+                devices[data.deviceId].lat = data.lat;
+                devices[data.deviceId].lon = data.lon;
+                devices[data.deviceId].speed = data.speed;
+                devices[data.deviceId].lastUpdate = Date.now();
+                
+                if (data.fraudTypes) {
+                    devices[data.deviceId].hasFraud = true;
+                    devices[data.deviceId].fraudTypes = data.fraudTypes;
+                }
+            }
+        }
+        
+        // ==========================================
+        // PART 6: CREATE CUSTOM MARKER ICONS
+        // ==========================================
+        
+        function createMarkerIcon(isFraud) {
+            const color = isFraud ? '#ef4444' : '#10b981';
+            
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `
+                    <div style="
+                        width: 24px;
+                        height: 24px;
+                        background: ${color};
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    "></div>
+                `,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+        }
+        
+        // ==========================================
+        // PART 7: UPDATE/CREATE MAP MARKERS
+        // ==========================================
+        
+        function updateMarker(data) {
+            const position = [data.lat, data.lon];
+            const isFraud = data.fraudTypes ? true : false;
+            
+            if (markers[data.deviceId]) {
+                // Update existing marker position
+                markers[data.deviceId].setLatLng(position);
+            } else {
+                // Create new marker
+                const marker = L.marker(position, {
+                    icon: createMarkerIcon(isFraud)
+                }).addTo(map);
+                
+                // Popup content
+                const popupContent = `
+                    <div style="padding: 5px;">
+                        <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 16px;">${data.deviceId}</h3>
+                        <p style="margin: 3px 0; font-size: 13px;"><strong>Lat:</strong> ${data.lat.toFixed(6)}</p>
+                        <p style="margin: 3px 0; font-size: 13px;"><strong>Lon:</strong> ${data.lon.toFixed(6)}</p>
+                        <p style="margin: 3px 0; font-size: 13px;"><strong>Speed:</strong> ${data.speed ? data.speed.toFixed(1) + ' km/h' : 'N/A'}</p>
+                        <p style="margin: 3px 0; font-size: 13px;"><strong>Status:</strong> ${isFraud ? '🚨 Fraud' : '✅ Safe'}</p>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                
+                markers[data.deviceId] = marker;
+                
+                // Center map on new device
+                map.panTo(position);
+            }
+        }
+        
+        // ==========================================
+        // PART 8: UPDATE SIDEBAR DEVICE LIST
+        // ==========================================
+        
+        function updateDeviceList() {
+            const deviceList = document.getElementById('deviceList');
+            deviceList.innerHTML = '';
+            
+            Object.values(devices).forEach(device => {
+                const card = document.createElement('div');
+                card.className = 'device-card' + (device.hasFraud ? ' fraud' : '');
+                card.onclick = () => focusDevice(device.deviceId);
+                
+                card.innerHTML = `
+                    <div class="device-name">
+                        <span>${device.deviceId}</span>
+                        <span class="device-badge ${device.hasFraud ? 'fraud' : ''}">${device.hasFraud ? '🚨 FRAUD' : '✅ SAFE'}</span>
+                    </div>
+                    <div class="device-info">
+                        📍 ${device.lat.toFixed(4)}, ${device.lon.toFixed(4)}<br>
+                        ${device.speed ? `🚗 ${device.speed.toFixed(1)} km/h` : '🚗 No speed data'}<br>
+                        ${device.hasFraud ? `⚠️ ${device.fraudTypes.join(', ')}` : ''}
+                    </div>
+                `;
+                
+                deviceList.appendChild(card);
+            });
+        }
+        
+        // ==========================================
+        // PART 9: HELPER FUNCTIONS
+        // ==========================================
+        
+        function updateStatus(message, status) {
+            const statusBox = document.getElementById('statusBox');
+            statusBox.textContent = message;
+            statusBox.className = 'status-box ' + status;
+        }
+        
+        function updateStats() {
+            const totalDevices = Object.keys(devices).length;
+            const safeDevices = Object.values(devices).filter(d => !d.hasFraud).length;
+            
+            document.getElementById('totalDevices').textContent = totalDevices;
+            document.getElementById('safeDevices').textContent = safeDevices;
+        }
+        
+        function showFraudAlert(data) {
+            const alertBox = document.getElementById('fraudAlert');
+            const alertText = document.getElementById('fraudAlertText');
+            
+            alertText.innerHTML = `
+                <strong>Device:</strong> ${data.deviceId}<br>
+                <strong>Fraud Type:</strong> ${data.fraudTypes.join(', ')}<br>
+                <strong>Speed:</strong> ${data.speed ? data.speed.toFixed(1) + ' km/h' : 'N/A'}<br>
+                <strong>Location:</strong> ${data.lat.toFixed(4)}, ${data.lon.toFixed(4)}
+            `;
+            
+            alertBox.style.display = 'block';
+            
+            // Auto-close after 10 seconds
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 10000);
+        }
+        
+        function closeFraudAlert() {
+            document.getElementById('fraudAlert').style.display = 'none';
+        }
+        
+        function focusDevice(deviceId) {
+            if (markers[deviceId]) {
+                const position = markers[deviceId].getLatLng();
+                map.setView(position, 15);
+                markers[deviceId].openPopup();
+            }
+        }
+        
+        // Initialize map when page loads
+        window.onload = initMap;
+    </script>
+</body>
+</html>
