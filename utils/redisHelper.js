@@ -1,64 +1,60 @@
-const redisClient = require('./redisClient');
+const redis = require('redis');
 
-/**
- * Get last ping data for a device from Redis
- */
+const redisClient = redis.createClient({
+  socket: {
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: process.env.REDIS_PORT || 6379
+  }
+});
+
+redisClient.on('connect', () => {
+  console.log('✅ Redis client connected');
+});
+
+redisClient.on('error', (err) => {
+  console.error('❌ Redis error:', err);
+});
+
+redisClient.on('ready', () => {
+  console.log('✅ Redis client ready');
+});
+
+(async () => {
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    console.error('Failed to connect to Redis:', err);
+  }
+})();
+
 async function getLastPing(deviceId) {
   try {
-    const key = `device:${deviceId}`;
+    const key = `lastPing:${deviceId}`;
     const data = await redisClient.get(key);
     
     if (!data) {
-      console.log(`No previous ping found for device: ${deviceId}`);
       return null;
     }
     
     return JSON.parse(data);
-  } catch (err) {
-    console.error('Error getting last ping from Redis:', err);
+  } catch (error) {
+    console.error('Error getting last ping:', error);
     return null;
   }
 }
 
-/**
- * Save current ping data to Redis
- */
 async function saveLastPing(deviceId, pingData) {
   try {
-    const key = `device:${deviceId}`;
-    const value = JSON.stringify({
-      lat: pingData.lat,
-      lon: pingData.lon,
-      timestamp: pingData.timestamp
-    });
-    
-    // Save to Redis with 24-hour expiration
-    await redisClient.setEx(key, 86400, value);
-    console.log(`✅ Saved ping for device: ${deviceId}`);
-    return true;
-  } catch (err) {
-    console.error('Error saving ping to Redis:', err);
-    return false;
-  }
-}
-
-/**
- * Delete device data from Redis
- */
-async function deleteDeviceData(deviceId) {
-  try {
-    const key = `device:${deviceId}`;
-    await redisClient.del(key);
-    console.log(`Deleted Redis data for device: ${deviceId}`);
-    return true;
-  } catch (err) {
-    console.error('Error deleting device data:', err);
-    return false;
+    const key = `lastPing:${deviceId}`;
+    await redisClient.set(key, JSON.stringify(pingData));
+    await redisClient.expire(key, 86400); // 24 hours
+  } catch (error) {
+    console.error('Error saving last ping:', error);
   }
 }
 
 module.exports = {
   getLastPing,
   saveLastPing,
-  deleteDeviceData
+  redisClient
 };
