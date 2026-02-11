@@ -854,6 +854,9 @@
       impossibleJump: { amount: 0, count: 0 }
     };
 
+    // Track deviceIds that already had revenue counted (only count once per device)
+    let revenueCounted = new Set();
+
     // Simulate a realistic transaction amount for each blocked fraud
     function generateTransactionAmount(fraudType) {
       // Different fraud types tend to involve different transaction ranges
@@ -965,8 +968,11 @@
       if (riskScore) stats.riskScores.push(riskScore);
       if (fraudTypes) {
         stats.fraudCount++;
-        // Track revenue saved for each fraud detection
-        processRevenueSaved(fraudTypes);
+        // Only count revenue once per unique deviceId
+        if (!revenueCounted.has(deviceId)) {
+          revenueCounted.add(deviceId);
+          processRevenueSaved(fraudTypes);
+        }
       }
 
       // Update or create marker

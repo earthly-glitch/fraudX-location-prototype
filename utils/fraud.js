@@ -8,7 +8,7 @@ const isFar = (deliveryCoords, userCoords) => {
   const distance = haversineDistance(deliveryCoords, userCoords);
 
   return {
-    flag: distance > 0.5, // 500m threshold
+    flag: distance > 1.2, // 500m threshold
     distance
   };
 };
@@ -31,7 +31,7 @@ const isImpossibleJump = (prevCoords, prevTime, newCoords, timestamp) => {
   return { flag, speed, distance };
 };
 
-module.exports = { 
-  isFar, 
-  isImpossibleJump 
+module.exports = {
+  isFar,
+  isImpossibleJump
 };
