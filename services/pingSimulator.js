@@ -41,7 +41,7 @@ class PingSimulator extends EventEmitter {
     };
   }
 
-  startSimulation(deviceId, options = {}) {
+  async startSimulation(deviceId, options = {}) {
     const { mode = 'normal', interval = 10 } = options;
 
     if (this.activeSimulations.has(deviceId)) {
@@ -50,9 +50,24 @@ class PingSimulator extends EventEmitter {
 
     const routes = this.getRoutes();
     const selectedRoute = routes[mode];
-    
+
     if (!selectedRoute) {
       throw new Error(`Invalid mode: ${mode}`);
+    }
+
+    // Auto-register the first route position as the delivery point
+    // so GeoMismatch fraud can be detected when device moves away
+    const startPoint = selectedRoute[0];
+    try {
+      await axios.post(`${this.baseURL}/api/location/set-delivery`, {
+        deviceId,
+        Lat: startPoint.lat,
+        Lon: startPoint.lon,
+        city: startPoint.name
+      });
+      console.log(`📦 Delivery point set for ${deviceId} at ${startPoint.name}`);
+    } catch (err) {
+      console.warn(`⚠️ Could not set delivery point for ${deviceId}:`, err.message);
     }
 
     const simulation = {
@@ -80,20 +95,20 @@ class PingSimulator extends EventEmitter {
     this.activeSimulations.set(deviceId, simulation);
     this._sendPing(simulation);
 
-    this.emit('simulation-started', { 
-      deviceId, 
-      mode, 
-      interval 
+    this.emit('simulation-started', {
+      deviceId,
+      mode,
+      interval
     });
-    
+
     return simulation;
   }
 
   async _sendPing(simulation) {
     try {
       const location = simulation.route[simulation.currentPosition];
-      const prevLocation = simulation.currentPosition > 0 
-        ? simulation.route[simulation.currentPosition - 1] 
+      const prevLocation = simulation.currentPosition > 0
+        ? simulation.route[simulation.currentPosition - 1]
         : null;
 
       if (prevLocation) {
@@ -111,7 +126,7 @@ class PingSimulator extends EventEmitter {
       };
 
       const response = await axios.post(
-        `${this.baseURL}/api/location/ping`, 
+        `${this.baseURL}/api/location/ping`,
         payload
       );
 
@@ -159,13 +174,13 @@ class PingSimulator extends EventEmitter {
     clearInterval(simulation.intervalId);
     simulation.isRunning = false;
     this.activeSimulations.delete(deviceId);
-    
-    this.emit('simulation-stopped', { 
-      deviceId, 
+
+    this.emit('simulation-stopped', {
+      deviceId,
       totalPings: simulation.pingCount,
       duration: Date.now() - simulation.startTime
     });
-    
+
     return true;
   }
 
@@ -197,10 +212,10 @@ class PingSimulator extends EventEmitter {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 }

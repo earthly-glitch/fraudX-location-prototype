@@ -38,8 +38,22 @@ router.post("/ping", async (req, res) => {
   console.log("Last ping from Redis:", lastPing);
 
   // Distance fraud check
-  if (deliveryCoords) {
-    const distanceCheck = isFar(deliveryCoords, userCoords);
+  // Use provided deliveryCoords, or auto-lookup from last saved delivery point
+  let effectiveDeliveryCoords = deliveryCoords;
+  if (!effectiveDeliveryCoords) {
+    const lastDelivery = await LocationLog.findOne({
+      deviceId,
+      fraudFlag: "DeliveryPoint"
+    }).sort({ _id: -1 });
+
+    if (lastDelivery) {
+      effectiveDeliveryCoords = { lat: lastDelivery.lat, lon: lastDelivery.lon };
+      console.log(`Auto-loaded delivery point for ${deviceId}: ${lastDelivery.lat}, ${lastDelivery.lon}`);
+    }
+  }
+
+  if (effectiveDeliveryCoords) {
+    const distanceCheck = isFar(effectiveDeliveryCoords, userCoords);
     if (distanceCheck.flag) {
       fraudTypes.push("GeoMismatch");
       riskScore = Math.max(riskScore, 0.8);
@@ -90,7 +104,7 @@ router.post("/ping", async (req, res) => {
 
   // Socket.IO emits
   const io = req.app.get('io');
-  
+
   io.emit('location_update', {
     deviceId,
     lat: userCoords.lat,

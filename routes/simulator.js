@@ -17,19 +17,19 @@ router.post('/start', [
   body('mode').optional().isIn(['normal', 'fast', 'teleport']),
   body('interval').optional().isInt({ min: 5, max: 60 }),
   validate
-], (req, res) => {
+], async (req, res) => {
   try {
-    const { 
-      deviceId, 
-      mode = 'normal', 
-      interval = 10 
+    const {
+      deviceId,
+      mode = 'normal',
+      interval = 10
     } = req.body;
-    
-    const sim = simulator.startSimulation(deviceId, {
+
+    const sim = await simulator.startSimulation(deviceId, {
       mode,
       interval: parseInt(interval)
     });
-    
+
     res.json({
       ok: true,
       message: `Simulation started for ${deviceId}`,
@@ -52,7 +52,7 @@ router.post('/stop', [
 ], (req, res) => {
   const { deviceId } = req.body;
   const stopped = simulator.stopSimulation(deviceId);
-  
+
   if (stopped) {
     res.json({ ok: true, message: `Simulation stopped for ${deviceId}` });
   } else {
